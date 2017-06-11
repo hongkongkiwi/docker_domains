@@ -1,10 +1,14 @@
 #!/bin/bash
 
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 DEHYDRATED_DOMAINS="/etc/dehydrated/domains.txt"
 TEMP_FILE="/tmp/domains.txt"
-REMOTE_SCRIPT="remote_docker_domains"
+REMOTE_SCRIPT="${DIR}/remote_docker_domains"
 REMOTE_HOST="root@192.168.1.3"
 REMOTE_PORT=22
+CHECK_DOMAINS_SCRIPT="${DIR}/check_domain.sh"
+CHECK_DOMAINS="true"
+
 [[ "$1" == "-v" ]] && DEBUG="true" || DEBUG="false"
 
 command -v md5sum >/dev/null 2>&1 || { echo >&2 "I require md5sum but it's not installed.  Aborting."; exit 1; }
@@ -18,8 +22,28 @@ command -v cut >/dev/null 2>&1 || { echo >&2 "I require cut but it's not install
 [ -f "$DEHYDRATED_DOMAINS" ] || { echo >&2 "$DEHYDRATED_DOMAINS does not exist.  Aborting."; exit 2; } 
 
 # Get remote docker VIRTUAL_HOST domains
-DOMAINS=`ssh -q -p $REMOTE_PORT "$REMOTE_HOST" < "$REMOTE_SCRIPT" | tr " " "\n"`
-echo -e "$DOMAINS" > "$TEMP_FILE"
+UNCHECKED_DOMAINS=`ssh -q -p $REMOTE_PORT "$REMOTE_HOST" < "$REMOTE_SCRIPT" | tr " " "\n"`
+DOMAINS=""
+if [[ "$CHECK_DOMAINS" == "true" ]]; then
+  IFS=$'\n'
+  for DOMAINS_RAW in $UNCHECKED_DOMAINS
+  do
+    [[ `echo "$DOMAINS_RAW" | tr -d " "` == "" ]] && continue
+    IFS=','
+    for DOMAIN in $DOMAINS_RAW
+    do
+      [[ `echo "$DOMAIN" | tr -d " "` == "" ]] && continue
+      CODE=`"$CHECK_DOMAINS_SCRIPT" "$DOMAIN"; echo $?`
+      if [ "$CODE" != 0 -a "$CODE" != 255 ]; then
+        DOMAINS+="${DOMAIN}\n"
+      fi
+    done
+  done
+else
+  DOMAINS="$UNCHECKED_DOMAINS"
+fi
+
+echo -e "$DOMAINS" | sed '/^\s*$/d' > "$TEMP_FILE"
 cat "$DEHYDRATED_DOMAINS" "$TEMP_FILE" | sort | uniq | sed '/^\s*$/d' > "$TEMP_FILE"
 cat "$TEMP_FILE" > /dev/null
 
