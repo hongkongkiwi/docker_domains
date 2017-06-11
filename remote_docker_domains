@@ -1,0 +1,7 @@
+#!/bin/bash
+
+ENV_VAR="VIRTUAL_HOST"
+
+docker inspect -f \
+	'{{range $index, $value := .Config.Env}}{{println $value}}{{end}}' $(docker ps -a -q) \
+	| grep "${ENV_VAR}" | tr -d "${ENV_VAR}="
