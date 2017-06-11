@@ -12,5 +12,18 @@ get_answers_number () # name
     echo "${res%%,*}"
 }
 
-[[ "$1" != "" ]] && RESULT=`get_answers_number "$1"` || RESULT=255
-exit $RESULT
+if [[ -f "$1" ]]; then
+  DOMAINS=""
+  DOMAINS_RAW=`cat "$1"`
+  IFS=$'\n'
+  for DOMAIN in $DOMAINS_RAW
+  do
+      if [[ `get_answers_number "$DOMAIN"` == 0 ]]; then
+        DOMAINS+="${DOMAIN}\n"
+      fi
+  done  
+  echo -e "$DOMAINS"
+else
+  [[ "$1" != "" ]] && RESULT=`get_answers_number "$1"` || RESULT=255
+  exit $RESULT
+fi
